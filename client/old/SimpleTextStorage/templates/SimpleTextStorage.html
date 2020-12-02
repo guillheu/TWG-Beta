@@ -1,0 +1,67 @@
+<h1>SimpleTextStorage</h1><br><br>{{abi|json_script:"abiScript"}}
+
+<script type="text/javascript">
+
+async function initWeb3(){
+    ethEnabled = false;
+    if (window.ethereum) {
+            const web3 = new Web3(window.ethereum);
+            await window.ethereum.enable();
+        ethEnabled = true;
+    }
+}
+
+
+async function _get() {
+
+
+	initWeb3();
+
+	abi = JSON.parse(document.getElementById("abiScript").textContent);
+	address = "{{address}}";
+	contract = web3.eth.contract(abi, address).at(address);
+
+	await contract.get.call( {from: web3.eth.accounts[0],gasPrice: {{gasPrice}} }, function(error , result){			if(error){
+                 document.getElementById("getReturn").innerHTML = "there was an error";
+                 console.log(error.code);
+            }
+             else if(result != undefined){
+                //TODO : test this with smart contract that has a function which returns several things
+                document.getElementById("getReturn").innerHTML = result.toString().replace(/,/g, "<br>");
+            }
+            else
+                document.getElementById("getReturn").innerHTML = "";
+
+        });
+}
+
+async function _set(_x) {
+
+
+	initWeb3();
+
+	abi = JSON.parse(document.getElementById("abiScript").textContent);
+	address = "{{address}}";
+	contract = web3.eth.contract(abi, address).at(address);
+
+	await contract.set.sendTransaction(_x,  {from: web3.eth.accounts[0],gasPrice: {{gasPrice}} }, function(error , result){			if(error){
+                 document.getElementById("setReturn").innerHTML = "there was an error";
+                 console.log(error.code);
+            }
+             else if(result != undefined){
+                //TODO : test this with smart contract that has a function which returns several things
+                document.getElementById("setReturn").innerHTML = result.toString().replace(/,/g, "<br>");
+            }
+            else
+                document.getElementById("setReturn").innerHTML = "";
+
+        });
+}</script><br><h3>get</h3><br>
+<button onclick="_get();">submit</button>
+<div id="getReturn"></div><br><br>
+
+<h3>set</h3>x (text) : <input type="text" name="set_x" id="set_x"/><br>   
+<br>
+<button onclick="_set(document.getElementById('set_x').value);">submit</button>
+<div id="setReturn"></div><br><br>
+

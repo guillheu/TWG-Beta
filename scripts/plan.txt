@@ -1,0 +1,7 @@
+	- use django command to create a new app named [CONTRACT]
+	- add said app to the loaded app list in client/client/settings.py
+	- add app url in client/client/urls.py
+	- create a client/[CONTRACT]/templates folder
+	- create a client/[CONTRACT]/templates/index.html file
+	- create a client/[CONTRACT]/urls.py file and set a single empty url for it
+	- create a client/[CONTRACT]/web3_handler.py file and set the network url, contract address and contract abi to generate the contract object

@@ -1,0 +1,91 @@
+<h1>Faucet</h1><br><br>{{abi|json_script:"abiScript"}}
+
+<script type="text/javascript">
+
+
+ethereum.autoRefreshOnNetworkChange = false;
+web3 = new Web3(new Web3.providers.HttpProvider("HTTP://127.0.0.1:8545"));
+
+abi = JSON.parse(document.getElementById("abiScript").textContent);
+address = "{{address}}";
+contract = web3.eth.contract(window.abi, window.address).at(window.address);
+
+
+async function initWeb3(){
+    window.ethEnabled = false;
+    if (window.ethereum && window.ethEnabled == false) {
+        ethereum.autoRefreshOnNetworkChange = false;
+
+        //remove this ?
+        
+        window.accounts = await window.ethereum.request({'method' : 'eth_requestAccounts'});
+        console.log(window.accounts)
+    }
+    window.ethEnabled = true;
+}
+
+
+async function donate() {
+
+
+    await initWeb3();
+
+    
+    try {
+  const transactionHash = await ethereum.request({
+    'method': 'eth_sendTransaction',
+    params: [
+      {
+        'to': window.address,
+        'from': window.accounts[0],
+        //Value has to be in hexadecimal
+        'value': parseInt(web3.toWei(1, "ether")).toString(16),
+        'gasPrice': '{{gasPrice}}',
+      },
+    ],
+  });
+  // Handle the result
+  console.log(transactionHash);
+} catch (error) {
+  console.error(error);
+}
+}
+
+
+
+
+
+
+async function _timeouts(_) {
+	await window.contract.timeouts.call(_,  {gasPrice: {{gasPrice}} }, function(error , result){			if(error){
+                 document.getElementById("timeoutsReturn").innerHTML = "there was an error";
+                 console.log(error.code);
+            }
+             else if(result != undefined){
+                //TODO : test this with smart contract that has a function which returns several things
+                document.getElementById("timeoutsReturn").innerHTML = result.toString().replace(/,/g, "<br>");
+            }
+            else
+                document.getElementById("timeoutsReturn").innerHTML = "";
+
+        });
+    
+}</script>
+The faucet currently holds <u>{{balance}} ETH </u>
+<br><br>
+If you care to make a donation, please send ETH to <a href="javascript:donate();">{{address}}</a><br>
+
+<br>
+<form action="/Faucet/request/" method="get">
+    <label for="address">Address to provision :</label>
+    <input type="text" id="address" name="address"><br>
+    <input type="submit" value="Submit"></form>
+
+<br>
+
+
+<h3>timeouts</h3> address : <input type="text" name="timeouts_" id="timeouts_"/><br>   
+
+
+<button onclick="_timeouts(document.getElementById('timeouts_').value);">submit</button>
+<div id="timeoutsReturn"></div><br><br>
