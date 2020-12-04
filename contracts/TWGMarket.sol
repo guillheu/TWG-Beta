@@ -68,7 +68,7 @@ contract TWGMarket is ERC1155Receiver, Ownable{
     	return _unitPrices[id];
     }
 
-    function getProductBestOffer(uint id) public view returns(uint, ProductOffers memory){
+    function getProductBestOffers(uint id) public view returns(uint, ProductOffers memory){
     	uint price = _unitPrices[id][0];
     	return (price, _productOffers[id][price]);
     }
@@ -139,8 +139,28 @@ contract TWGMarket is ERC1155Receiver, Ownable{
 
 	function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external override fromTokenContract returns(bytes4){
 		require(data.length == ids.length * 32);
+		require(ids.length == values.length);
+		uint unitPrice;
+		for(uint i = 0; i < ids.length; i++) {
+			bytes memory bytesValue = new bytes(32);
+			for(uint j = i*32; j < (i+1)*32; j++) {
+        		bytesValue[j-i*32] = data[j];
+	    	}
+			unitPrice = bytesToUint(bytesValue);
+			_productOffers[ids[i]][unitPrice].sellers.push(operator);
+			_productOffers[ids[i]][unitPrice].amounts.push(values[i]);
+			_unitPrices[ids[i]].push(unitPrice);
+		}
     	return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
     }
+
+
+
+    /*************************************
+    ***********Utility functions**********
+    *************************************/
+
+
 
     function containsPrice(uint id, uint price) internal view returns(bool){
     	for(uint i = 0; i < _unitPrices[id].length; i++){
@@ -151,9 +171,11 @@ contract TWGMarket is ERC1155Receiver, Ownable{
     }
 
     function inOffersFindSellerIndex(ProductOffers memory offers, address seller) internal pure returns(uint){
-    	for(uint i = 0; i < offers.sellers.length; i++)
-    		if(offers.sellers[i] == seller)
+    	for(uint i = 0; i < offers.sellers.length; i++){
+    		if(offers.sellers[i] == seller){
     			return i;
+    		}
+    	}
     	revert("Seller not found for this product offer");
     }
 

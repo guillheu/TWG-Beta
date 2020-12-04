@@ -117,6 +117,16 @@ def testERC1155BatchReceiver(marketContract):
     else:
         assert False
 
+    prices = marketContract.getProductUnitPrices(cardId1)
+    offers = marketContract.getProductOffers(cardId1, prices[0])
+    assert prices[0] == card1UnitPrice
+    assert offers.dict() == {'amounts': (card1TransferAmount,), "sellers": (owner.address,)}
+    prices = marketContract.getProductUnitPrices(cardId2)
+    offers = marketContract.getProductOffers(cardId2, prices[0])
+    assert prices[0] == card2UnitPrice
+    assert offers.dict() == {'amounts': (card2TransferAmount,), "sellers": (owner.address,)}
+
+
 def testAddProduct(marketContract):
 
     tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
@@ -128,7 +138,7 @@ def testAddProduct(marketContract):
 
     prices = marketContract.getProductUnitPrices(cardId1)
     print(prices)
-    assert prices[0] == Wei(card1UnitPrice)
+    assert prices[0] == card1UnitPrice
     assert len(prices) == 1
     offer = marketContract.getProductOffers(cardId1, prices[0])
     expected = {'amounts': (card1TransferAmount,), "sellers": (player1.address,)}
@@ -136,9 +146,10 @@ def testAddProduct(marketContract):
     print(expected)
     assert offer.dict() == expected
 
-    offer = marketContract.getProductBestOffer(cardId1)
+    offer = marketContract.getProductBestOffers(cardId1)
     assert offer[0] == card1UnitPrice
     assert offer[1].dict() == expected
+
 
 
 def testBalanceOf(marketContract):
@@ -202,7 +213,7 @@ def printCards(tokenContract):
     tokenContract.printTo(player2, cardId2, card2Amount, {'from':owner})
 
 def transferCardsToMarket(marketContract, tokenContract):
-    unitPrice = to_bytes(Wei(card1UnitPrice))
+    unitPrice = to_bytes(card1UnitPrice)
     tokenContract.safeTransferFrom(player1, marketContract.address, cardId1, card1TransferAmount, unitPrice, {'from': player1})
 
 def player2BuysCard1FromPlayer1(marketContract):

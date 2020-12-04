@@ -1,4 +1,4 @@
-from brownie import accounts, TWGToken
+from brownie import accounts, Wei, TWGToken
 from brownie.convert import to_bytes
 from brownie.exceptions import *
 import brownie
