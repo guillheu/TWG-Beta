@@ -114,7 +114,7 @@ contract TWGMarket is ERC1155Receiver, Ownable{
     function withdrawFunds() public callerHasFunds {
     	uint amount = _balances[msg.sender];
     	_balances[msg.sender] = 0;
-    	(bool success,) = msg.sender.call.value(amount)("");
+    	(bool success,) = msg.sender.call{value: amount}("");
     	if(!success)
     		revert();
     }
@@ -139,7 +139,6 @@ contract TWGMarket is ERC1155Receiver, Ownable{
 
 	function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external override fromTokenContract returns(bytes4){
 		require(data.length == ids.length * 32);
-		require(ids.length == values.length);
 		uint unitPrice;
 		for(uint i = 0; i < ids.length; i++) {
 			bytes memory bytesValue = new bytes(32);

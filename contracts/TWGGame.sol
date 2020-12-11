@@ -4,14 +4,16 @@ import "OpenZeppelin/openzeppelin-contracts@3.2.0/contracts/token/ERC1155/ERC115
 import "OpenZeppelin/openzeppelin-contracts@3.2.0/contracts/access/Ownable.sol";
 import "OpenZeppelin/openzeppelin-contracts@3.3.0/contracts/utils/EnumerableSet.sol";   //3.3 required for enumSet of bytes32
 import "OpenZeppelin/openzeppelin-contracts@3.2.0/contracts/utils/Counters.sol";
+import "OpenZeppelin/openzeppelin-contracts@3.2.0/contracts/token/ERC1155/ERC1155Receiver.sol";
 import "./TWGMarket.sol";
+import "./TWGToken.sol";
 
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 
 
-contract TWGGame is Ownable{
+contract TWGGame is Ownable, ERC1155Receiver{
 
     /*************************************
     *****************Types****************
@@ -32,12 +34,14 @@ contract TWGGame is Ownable{
 		Mythic,
 		Unique
 	}
-	
-	struct Card{
-		string name;
-		Rarity rarity;					//Boosting a card to the next rarity might change it's name/art/description, but not its gameplay values
-		bool HoF;
-	}
+
+
+    /*************************************
+    *****************Events***************
+    *************************************/
+
+    event packOpened(address player, uint packID, uint amount, uint[] cardsInside);
+    event receivedTokens(address operator, address from, uint id, uint value, bytes data);
 
     /*************************************
     ***********Storage variables**********
@@ -46,36 +50,49 @@ contract TWGGame is Ownable{
 
 	using Counters for Counters.Counter;
 
-	uint[] assets;
-	mapping (uint => Card) private _cards;
+	mapping (AssetType => uint[]) private _assets;
 
-	mapping (AssetType => Counters.Counter) private _counters;
+
 
 						//Currently no plans to use the booster counter, but might in the future. 
 						//It would mean that the kinds of boosters that exist go beyond just rarity difference
+	mapping (AssetType => Counters.Counter) private _counters;
+
+
+	//input = a pack ID
+	//output : a weighted list of openable cards
+	//the more a card shows up in the list, the more likely it is to be opened
+	mapping (uint => uint[]) _packOdds;
+	
+
+
 	TWGMarket private _market;
+	TWGToken private _token;
+
+	uint8 openPackCode = 0xF0;
 
     /*************************************
     ***************Modifiers**************
     *************************************/
 
-    modifier cardIsHoF(uint id){
-    	require(_cards[id].HoF);
+
+    modifier assetExists(AssetType _type, uint id){
+    	require(containsUint(_assets[_type], id));
     	_;
     }
 
-    modifier cardIsNotHoF(uint id){
-    	require(!_cards[id].HoF);
+    modifier assetDoesNotExists(AssetType _type, uint id){
+    	require(!containsUint(_assets[_type], id));
     	_;
     }
 
-    modifier cardExists(uint id){
-    	require(keccak256(abi.encodePacked(_cards[id].name)) != keccak256(abi.encodePacked("")));
+    modifier fromTokenContract{
+    	require(msg.sender == address(_token));
     	_;
     }
 
-    modifier cardDoesNotExists(uint id){
-    	require(keccak256(abi.encodePacked(_cards[id].name)) == keccak256(abi.encodePacked("")));
+    modifier idIsOfType(uint id, AssetType _type){
+    	require(uint8(bytes32(id)[0]) == uint8(_type), "Incorrect asset type");
     	_;
     }
 
@@ -85,15 +102,19 @@ contract TWGGame is Ownable{
 
     constructor(address marketAddress) public {
     	_market = TWGMarket(marketAddress);
+    	_token = TWGToken(_market.getTokenContractAddress());
     }
 
-
-	function getCard(uint id) public view cardExists(id) returns(Card memory){
-		return _cards[id];
+	function getCards() public view returns(uint[] memory){
+		return _assets[AssetType.Card];
 	}
 
-	function getAssets() public view returns(uint[] memory){
-		return assets;
+	function getBoosters() public view returns(uint[] memory){
+		return _assets[AssetType.Booster];
+	}
+
+	function getPacks() public view returns(uint[] memory){
+		return _assets[AssetType.Pack];
 	}
 
 	function getMarketContractAddress() public view returns(address){
@@ -104,23 +125,33 @@ contract TWGGame is Ownable{
     	_market = TWGMarket(TWGMarketAddress);    	
     }
 
+    function getOpenPackCode() public view returns(uint8){
+    	return openPackCode;
+    }
+
+
     /*************************************
     *********onlyOwner functions**********
     *************************************/
 
-	function addCard(string memory name, Rarity rarity) public onlyOwner returns (uint){
+	function listNewCard(Rarity rarity) public onlyOwner returns (uint){
 		uint id = createAsset(AssetType.Card, rarity);
-		_cards[id] = Card(name, rarity, false);
+
 		return id;
 	}
 
-	function hofCard(uint id) public onlyOwner cardIsNotHoF(id) cardExists(id) {
-		_cards[id].HoF = true;
+	function makePack(Rarity rarity, uint[] calldata cards, uint[] calldata weights) public onlyOwner returns(uint) {
+		require(cards.length == weights.length, "arrays must be the same length");
+		uint id = createAsset(AssetType.Pack, rarity);
+		_assets[AssetType.Pack].push(id);
+		for(uint i = 0; i < cards.length; i++){
+			for(uint j = 0; j < weights[i]; j++){
+				_packOdds[id].push(cards[i]);
+			}
+		}
+		return id;
 	}
 
-	function unHoFCard(uint id) public onlyOwner cardIsHoF(id) cardExists(id) {
-		_cards[id].HoF = false;
-	}
 
     /*************************************
     **********Private functions***********
@@ -128,7 +159,7 @@ contract TWGGame is Ownable{
 
     function createAsset(AssetType _type, Rarity rarity) private returns(uint){
     	uint id = makeAssetId(_type, rarity);
-		assets.push(id);
+		_assets[_type].push(id);
     	_counters[_type].increment();
     	return id;
     }
@@ -140,6 +171,55 @@ contract TWGGame is Ownable{
     	return id;
     }
 
+    function containsUint(uint[] memory table, uint seek) private pure returns (bool) {
+    	for(uint i = 0; i < table.length; i++){
+    		if(table[i] == seek)
+    			return true;
+    	}
+    	return false;
+    }
+
+
+    				//5 = amount of cards per pack, hard-coded
+    function openPack(uint id, uint nonce) private returns(uint[] memory) {
+    	uint rng = uint(keccak256(abi.encodePacked(block.timestamp + id + uint(msg.sender) + nonce)));
+    	uint[] memory r = new uint[](5);
+    	uint length = _packOdds[id].length;
+    	for(uint i = 0; i < 5; i++){
+    		r[i] = _packOdds[id][rng%length];
+    		rng *= rng;
+    	}
+    	return r;
+    }
+
+
+    /*************************************
+    *******ERC1155Receiver functions******
+    *************************************/
+
+    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data) external override fromTokenContract returns(bytes4){
+    	if(data.length > 0){
+		    if(uint8(data[0]) == openPackCode){
+		    	for(uint i = 0; i < value; i++){
+		    		uint[] memory cards = new uint[](5);
+		    		cards = openPack(id, i);
+		    		uint[] memory amounts = new uint[](5);
+		    		for(uint j = 0; j < 5; j++){
+		    			amounts[j] = 1;
+		    		}
+		    		_token.safeBatchTransferFrom(address(this), from, cards, amounts, "");
+		    		emit packOpened(from, id, value, cards);
+		    	}
+	    	}
+	    }
+	    emit receivedTokens(operator, from, id, value, data);
+    	return bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"));
+    }
+
+	function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external override fromTokenContract returns(bytes4){
+
+    	return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
+    }
 
 
 
