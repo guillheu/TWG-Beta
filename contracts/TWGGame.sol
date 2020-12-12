@@ -70,6 +70,7 @@ contract TWGGame is Ownable, ERC1155Receiver{
 	TWGToken private _token;
 
 	uint8 openPackCode = 0xF0;
+	uint8 floorsForAPack = 5;
 
     /*************************************
     ***************Modifiers**************
@@ -105,18 +106,6 @@ contract TWGGame is Ownable, ERC1155Receiver{
     	_token = TWGToken(_market.getTokenContractAddress());
     }
 
-	function getCards() public view returns(uint[] memory){
-		return _assets[AssetType.Card];
-	}
-
-	function getBoosters() public view returns(uint[] memory){
-		return _assets[AssetType.Booster];
-	}
-
-	function getPacks() public view returns(uint[] memory){
-		return _assets[AssetType.Pack];
-	}
-
 	function getMarketContractAddress() public view returns(address){
 		return address(_market);
 	}
@@ -129,14 +118,18 @@ contract TWGGame is Ownable, ERC1155Receiver{
     	return openPackCode;
     }
 
+    function getAssetsList(AssetType _type) public view returns (uint[] memory) {
+    	return _assets[_type];
+    }
+
+
 
     /*************************************
     *********onlyOwner functions**********
     *************************************/
 
-	function listNewCard(Rarity rarity) public onlyOwner returns (uint){
-		uint id = createAsset(AssetType.Card, rarity);
-
+	function listNewAsset(AssetType _type, Rarity rarity) public onlyOwner returns (uint){
+		uint id = createAsset(_type, rarity);
 		return id;
 	}
 
@@ -152,29 +145,54 @@ contract TWGGame is Ownable, ERC1155Receiver{
 		return id;
 	}
 
+	function run(address player, uint floors) public onlyOwner {
+		uint packRewardId = _assets[AssetType.Pack][0];
+		uint amount = floors/floorsForAPack;
+		_token.safeTransferFrom(address(this), player, packRewardId, amount, "");
+	}
+
+	function generateAssetRarityVariant(uint id, Rarity newRarity) public onlyOwner returns(uint) {
+		bytes memory idBytes = abi.encodePacked(id);
+		AssetType _type;
+		if(idBytes[0] == 0x00)
+			_type = AssetType.Card;
+		if(idBytes[0] == 0x01)
+			_type = AssetType.Booster;
+		if(idBytes[0] == 0x02)
+			_type = AssetType.Pack;
+		idBytes[0] = 0x00;
+		idBytes[1] = 0x00;
+		id = bytesToUint(idBytes);
+		uint finalId = makeAssetId(_type, newRarity, id);
+		require(!containsUint(_assets[_type], finalId));
+
+		_assets[_type].push(finalId);
+		return finalId;
+	}
 
     /*************************************
     **********Private functions***********
     *************************************/
 
     function createAsset(AssetType _type, Rarity rarity) private returns(uint){
-    	uint id = makeAssetId(_type, rarity);
+    	uint id = makeAssetId(_type, rarity, _counters[_type].current());
 		_assets[_type].push(id);
     	_counters[_type].increment();
     	return id;
     }
 
-    function makeAssetId(AssetType _type, Rarity rarity) private view returns(uint){
+    function makeAssetId(AssetType _type, Rarity rarity, uint uniqueID) private view returns(uint){
     	uint id = uint(_type) * 	0x0100000000000000000000000000000000000000000000000000000000000000;
     	id += uint(rarity) * 	0x0001000000000000000000000000000000000000000000000000000000000000;
-		id += _counters[_type].current();
+		id += uniqueID;
     	return id;
     }
 
     function containsUint(uint[] memory table, uint seek) private pure returns (bool) {
     	for(uint i = 0; i < table.length; i++){
-    		if(table[i] == seek)
+    		if(table[i] == seek){
     			return true;
+    		}
     	}
     	return false;
     }
@@ -192,6 +210,13 @@ contract TWGGame is Ownable, ERC1155Receiver{
     	return r;
     }
 
+	function bytesToUint(bytes memory b) private pure returns (uint256){
+        uint256 number;
+        for(uint i=0;i<b.length;i++){
+            number = number + uint8(b[i])*(2**(8*(b.length-(i+1))));
+        }
+        return number;
+    }
 
     /*************************************
     *******ERC1155Receiver functions******

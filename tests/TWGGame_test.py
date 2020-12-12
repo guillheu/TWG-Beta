@@ -20,15 +20,17 @@ def setupVariables():
 
     global card1
     global card2
+    global card1Upgrade
     card1 = {}
     card2 = {}
+    card1Upgrade = {}
     global cardType
     cardType = 0
 
     card1['name'] = "Princess of the Sloths"
     card2['name'] = "Some thicc maiden"
-    card1['id'] = "0x0003000000000000000000000000000000000000000000000000000000000000"  #: card #0 with rarity of 3 : legendary
-    card2['id'] = "0x0001000000000000000000000000000000000000000000000000000000000001"  #: card #1 with rarity of 1 : rare
+    card1['id'] = 0x0003000000000000000000000000000000000000000000000000000000000000  #: card #0 with rarity of 3 : legendary
+    card2['id'] = 0x0001000000000000000000000000000000000000000000000000000000000001  #: card #1 with rarity of 1 : rare
     card1['rarity'] = 3
     card2['rarity'] = 1
     card1['initialStock'] = 420
@@ -40,11 +42,14 @@ def setupVariables():
     card1['player1StoreAmount'] = 10
     card2['player1StoreAmount'] = 20
 
+    card1Upgrade['rarity'] = 4
+    card1Upgrade['id'] = 0x0004000000000000000000000000000000000000000000000000000000000000
+
     global pack
     pack = {}
-    pack['id'] = "0x0200000000000000000000000000000000000000000000000000000000000000"
+    pack['id'] = 0x0200000000000000000000000000000000000000000000000000000000000000
     pack['rarity'] = 0 
-    pack['altId'] = "0x0200000000000000000000000000000000000000000000000000000000000001" 
+    pack['altId'] = 0x0200000000000000000000000000000000000000000000000000000000000001
     pack['name'] = "Classic card pack"
     pack['player1Amount'] = 10
     pack['player1UnpackAmount'] = 5
@@ -80,29 +85,29 @@ def testAddCard(gameContract):
     
     """
     #we should not find card1 before we add it
-    assert len(gameContract.getCards()) == 0
+    assert len(gameContract.getAssetsList(cardType)) == 0
 
 
     #adding card1, we should then find it
-    tx = gameContract.listNewCard(card1['rarity'], {"from" : owner})
+    tx = gameContract.listNewAsset(cardType, card1['rarity'], {"from" : owner})
     #the ID automatically created should match the one pre-described
     assert tx.return_value == card1['id']
-    assert gameContract.getCards()[0] == card1['id']
+    assert gameContract.getAssetsList(cardType)[0] == card1['id']
 
     #we should not find card2
 
-    assert len(gameContract.getCards()) == 1
+    assert len(gameContract.getAssetsList(cardType)) == 1
 
 
     #Same process for card2:
 
 
     #adding card2, we should then find it
-    tx = gameContract.listNewCard(card2['rarity'], {"from" : owner})
+    tx = gameContract.listNewAsset(cardType, card2['rarity'], {"from" : owner})
     print(tx.return_value)
     #the ID automatically created should match the one pre-described
     assert tx.return_value == card2['id']
-    cards = gameContract.getCards()
+    cards = gameContract.getAssetsList(cardType)
     print(cards)
 
     assert cards == [card1['id'], card2['id']]
@@ -151,22 +156,39 @@ def testOpenPacks(gameContract):
     assert tokenContract.balanceOf(gameContract.address, pack['id']) == pack['player1UnpackAmount']
     assert tokenContract.balanceOf(player1, card1['id']) + tokenContract.balanceOf(player1, card2['id']) == pack['cardAmountPerPack'] * pack['player1UnpackAmount']
 
-def IGNOREtestGetAssetsList(gameContract):
-    marketContract = TWGMarket.at(gameContract.getMarketContractAddress())
-    tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
-    gameContract.list(pack['type'], pack["id"], {'from':owner})
-    gameContract.list(pack['type'], pack["altId"], {'from':owner})
-    assert gameContract.getAssetsList(pack['type']) == [pack['id'], pack['altId']]
-    gameContract.list(cardType, card1["id"], {'from':owner})
-    gameContract.list(cardType, card1["id"], {'from':owner})
-    assert gameContract.getAssetsList(cardType) == [card1['id'], cardZ['id']]
 
-def IGNOREtestRun(gameContract):
+def testRun(gameContract):
     marketContract = TWGMarket.at(gameContract.getMarketContractAddress())
     tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
+
+    #listing packs, then printing packs to game contract
+    packId = gameContract.listNewAsset(pack["type"], pack['rarity'], {'from': owner})
+    tokenContract.printTo(gameContract.address, packId.return_value, 999999999, {'from':owner})
 
     #run function should reward the player based on the listed card packs, and pick one type at random
     gameContract.run(player1.address, run['result'], {'from':owner})
-    assert tokenContract.balanceOf(player1, pack['id'])
+    assert tokenContract.balanceOf(player1, pack['id']) >= int(run['result']/run['floorsPerPack'])
+
+def testGenerateCardRarityVariant(gameContract):
 
 
+
+    marketContract = TWGMarket.at(gameContract.getMarketContractAddress())
+    tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
+
+    card1Id = gameContract.listNewAsset(cardType, card1['rarity'], {'from': owner}).return_value
+    print(hex(card1Id))
+    print(hex(card1['id']))
+    gameContract.generateAssetRarityVariant(card1Id, card1Upgrade['rarity'])
+
+    cards = gameContract.getAssetsList(cardType)
+    assert gameContract.getAssetsList(cardType) == [card1['id'], card1Upgrade['id']]
+
+
+    try:
+        gameContract.generateAssetRarityVariant(card1Id, card1Upgrade['rarity'])
+        assert False
+    except(VirtualMachineError):
+        assert True
+    else:
+        assert False

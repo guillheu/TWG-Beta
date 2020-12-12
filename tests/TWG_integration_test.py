@@ -49,9 +49,9 @@ def testStockCards(gameContract):
     marketContract = TWGMarket.at(gameContract.getMarketContractAddress())
     tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
     #0 : Game owner designs new cards
-    tx = gameContract.listNewCard(card1['rarity'], {'from':owner})
+    tx = gameContract.listNewAsset(cardType, card1['rarity'], {'from':owner})
     assert tx.return_value == card1['id']
-    tx = gameContract.listNewCard(card2['rarity'], {'from':owner})
+    tx = gameContract.listNewAsset(cardType, card2['rarity'], {'from':owner})
     assert tx.return_value == card2['id']
     #1 : Game owner prints cards
     tokenContract.printTo(owner.address, card1['id'], card1['initialStock'])
@@ -130,7 +130,7 @@ def testGetCollection(gameContract):
     expectedOwner["amounts"] = []
 
     assert getCollection(gameContract, player1) == expectedOwner
-    gameContract.listNewCard(card1['rarity'], {'from':owner})
+    gameContract.listNewAsset(cardType, card1['rarity'], {'from':owner})
     tokenContract.printTo(owner, card1['id'], card1['initialStock'], {'from':owner})
     #might wanna try .dict() or .list() ; see brownie doc for function result
 
@@ -152,14 +152,14 @@ def testGetCollection(gameContract):
 
 
 
-    gameContract.listNewCard(card2['rarity'], {'from':owner})
+    gameContract.listNewAsset(cardType, card2['rarity'], {'from':owner})
     tokenContract.printTo(player1, card2['id'], card2['player1StoreAmount'], {'from':owner})
     expectedPlayer['ids'].append(card2['id'])
     expectedPlayer['amounts'].append(card2['player1StoreAmount'])
     assert getCollection(gameContract, player1) == expectedPlayer
 
 def getCollection(gameContract, player):
-    cards = gameContract.getCards()
+    cards = gameContract.getAssetsList(cardType)
     tokenContract = TWGToken.at(TWGMarket.at(gameContract.getMarketContractAddress()).getTokenContractAddress())
     addresses = []
     addresses = [player.address for i in range(len(cards))]
