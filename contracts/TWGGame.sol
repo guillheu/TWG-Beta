@@ -242,7 +242,6 @@ contract TWGGame is Ownable, ERC1155Receiver{
     }
 
 	function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external override fromTokenContract returns(bytes4){
-
     	return bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
     }
 

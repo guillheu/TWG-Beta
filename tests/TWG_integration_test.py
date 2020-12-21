@@ -62,12 +62,14 @@ def testStockCards(gameContract):
     valueData = to_bytes(card1['unitPriceInit']) + to_bytes(card2['unitPriceInit']) 
     tokenContract.safeBatchTransferFrom(owner.address, marketContract.address, cardIds, cardAmounts, valueData, {'from': owner})
     #3 : Player1 purchases cards from the game owner's shop
-    card1Prices = marketContract.getProductUnitPrices(card1['id'])
-    card1Offers = marketContract.getProductOffers(card1['id'], card1Prices[0])
-    card2PriceAndOffers = marketContract.getProductBestOffers(card2['id'])
 
-    marketContract.purchase(card1['id'], card1Prices[0], card1Offers['sellers'][0], card1['player1StoreAmount'], {'from':player1, 'value': card1['unitPriceInit']*card1['player1StoreAmount']})
-    marketContract.purchase(card2['id'], card2PriceAndOffers[0], card2PriceAndOffers[1]['sellers'][0], card2['player1StoreAmount'], {'from':player1, 'value': card2['unitPriceInit']*card2['player1StoreAmount']})
+    card1Prices = marketContract.getProductUnitPrices(card1['id'])
+    card2Prices = marketContract.getProductUnitPrices(card2['id'])
+    card1Offers = marketContract.getProductOffers(card1['id'], card1Prices[0])
+    card2Offers = marketContract.getProductOffers(card2['id'], card2Prices[0])
+    print(card1Offers.dict())
+    marketContract.purchase(card1['id'], card1Prices[0], card1Offers[0][0], card1['player1StoreAmount'], {'from':player1, 'value': card1['unitPriceInit']*card1['player1StoreAmount']})
+    marketContract.purchase(card2['id'], card2Prices[0], card2Offers[0][0], card2['player1StoreAmount'], {'from':player1, 'value': card2['unitPriceInit']*card2['player1StoreAmount']})
 
     #4 : Game owner withdraws his earnings
     marketContract.withdrawFunds({'from':owner})
@@ -86,8 +88,8 @@ def testStockCards(gameContract):
     card2Offers = marketContract.getProductOffers(card2['id'], card2Prices[1])
 
     try:
-        marketContract.purchase(card1['id'], card1Prices[1], card1Offers['sellers'][0], card1['player1StoreAmount'], {'from':player2, 'value': card1['unitPriceInit']*card1['player1StoreAmount']})
-        marketContract.purchase(card2['id'], card2Prices[1], card2Offers['sellers'][0], card2['player1StoreAmount'], {'from':player2, 'value': card2['unitPriceInit']*card2['player1StoreAmount']})
+        marketContract.purchase(card1['id'], card1Prices[1], card1Offers[0][0], card1['player1StoreAmount'], {'from':player2, 'value': card1['unitPriceInit']*card1['player1StoreAmount']})
+        marketContract.purchase(card2['id'], card2Prices[1], card2Offers[0][0], card2['player1StoreAmount'], {'from':player2, 'value': card2['unitPriceInit']*card2['player1StoreAmount']})
         assert False
     except(VirtualMachineError):
         assert True
@@ -98,12 +100,12 @@ def testStockCards(gameContract):
     print(card1Offers)
 
     assert card1Prices[1] == card1['unitPriceMarkup']
-    assert card1Offers['sellers'][0] == player1.address
+    assert card1Offers[0][0] == player1.address
 
     #7 : Player3 over-purchases Player1's card1s and gets his change back
     oldBalance = player3.balance()
-    marketContract.purchase(card1['id'], card1Prices[1], card1Offers['sellers'][0], card1['player1StoreAmount'], {'from':player3, 'value': Wei("1 ether")})
-    marketContract.purchase(card2['id'], card2Prices[1], card2Offers['sellers'][0], card2['player1StoreAmount'], {'from':player3, 'value': Wei("1 ether")})
+    marketContract.purchase(card1['id'], card1Prices[1], card1Offers[0][0], card1['player1StoreAmount'], {'from':player3, 'value': Wei("1 ether")})
+    marketContract.purchase(card2['id'], card2Prices[1], card2Offers[0][0], card2['player1StoreAmount'], {'from':player3, 'value': Wei("1 ether")})
     #This last assertion will likely fail if running these tests on a non-local network (where gas price > 0)
     assert player3.balance() > oldBalance - Wei("2 ether")
 

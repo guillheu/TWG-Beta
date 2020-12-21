@@ -120,11 +120,11 @@ def testERC1155BatchReceiver(marketContract):
     prices = marketContract.getProductUnitPrices(cardId1)
     offers = marketContract.getProductOffers(cardId1, prices[0])
     assert prices[0] == card1UnitPrice
-    assert offers.dict() == {'amounts': (card1TransferAmount,), "sellers": (owner.address,)}
+    assert offers == [(owner.address, card1TransferAmount)]
     prices = marketContract.getProductUnitPrices(cardId2)
     offers = marketContract.getProductOffers(cardId2, prices[0])
     assert prices[0] == card2UnitPrice
-    assert offers.dict() == {'amounts': (card2TransferAmount,), "sellers": (owner.address,)}
+    assert offers == [(owner.address, card2TransferAmount)]
 
 
 def testAddProduct(marketContract):
@@ -141,14 +141,11 @@ def testAddProduct(marketContract):
     assert prices[0] == card1UnitPrice
     assert len(prices) == 1
     offer = marketContract.getProductOffers(cardId1, prices[0])
-    expected = {'amounts': (card1TransferAmount,), "sellers": (player1.address,)}
-    print(offer.dict())
+    expected = [(player1.address, card1TransferAmount)]
+    print(offer)
     print(expected)
-    assert offer.dict() == expected
+    assert offer == expected
 
-    offer = marketContract.getProductBestOffers(cardId1)
-    assert offer[0] == card1UnitPrice
-    assert offer[1].dict() == expected
 
 
 
@@ -168,6 +165,11 @@ def testBuyProduct(marketContract):
     printCards(tokenContract)
     transferCardsToMarket(marketContract, tokenContract)
 
+
+    prices = marketContract.getProductUnitPrices(cardId1)
+    print(prices)
+    print(marketContract.getProductOffers(cardId1, prices[0]))
+
     try:
         marketContract.purchase(cardId1, card1UnitPrice, player1.address, card1TransferAmount, {'from': player2, 'value': '0'})
         assert False
@@ -184,6 +186,25 @@ def testBuyProduct(marketContract):
     assert marketContract.balanceOf(player1.address) == card1UnitPrice*card1TransferAmount
     assert marketContract.balance() == balanceContractBefore + card1UnitPrice*card1TransferAmount
     assert tokenContract.balanceOf(player2.address, cardId1) == card1TransferAmount
+
+
+
+    print(marketContract.getProductOffers(cardId1, 100))
+
+    prices = marketContract.getProductUnitPrices(cardId1)
+    print(prices)
+    #print(marketContract.getProductOffers(cardId1, prices[0]))
+    assert prices == ()
+
+    printCards(tokenContract)
+    transferCardsToMarket(marketContract, tokenContract)
+
+
+    prices = marketContract.getProductUnitPrices(cardId1)
+    print(prices)
+    print(marketContract.getProductOffers(cardId1, prices[0]))
+
+
 
 def testWithdrawFunds(marketContract):
     tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
@@ -204,6 +225,14 @@ def testWithdrawFunds(marketContract):
 
 
 
+def testWithdrawTokens(marketContract):
+    tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
+    printCards(tokenContract)
+    transferCardsToMarket(marketContract, tokenContract)
+
+
+    marketContract.withdrawTokens(cardId1, card1UnitPrice, card1TransferAmount, {'from':player1})
+    assert tokenContract.balanceOf(player1, cardId1) == card1Amount
 
 
 #Scenario functions (not tests)
