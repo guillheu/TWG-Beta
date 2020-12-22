@@ -29,9 +29,13 @@ def setupVariables():
 
     card1['name'] = "Princess of the Sloths"
     card2['name'] = "Some thicc maiden"
-    card1['id'] = 0x0003000000000000000000000000000000000000000000000000000000000000  #: card #0 with rarity of 3 : legendary
+    card1['id'] = 0x0000000000000000000000000000000000000000000000000000000000000000  #: card #0 with rarity of 0 : common
+    card1['idUpgrade1'] = 0x0001000000000000000000000000000000000000000000000000000000000000
+    card1['idUpgrade2'] = 0x0002000000000000000000000000000000000000000000000000000000000000
+    card1['idUpgrade3'] = 0x0003000000000000000000000000000000000000000000000000000000000000
+    card1['boostAmount'] = 10
     card2['id'] = 0x0001000000000000000000000000000000000000000000000000000000000001  #: card #1 with rarity of 1 : rare
-    card1['rarity'] = 3
+    card1['rarity'] = 0
     card2['rarity'] = 1
     card1['initialStock'] = 420
     card2['initialStock'] = 69
@@ -61,6 +65,24 @@ def setupVariables():
     run = {}
     run['result'] = 10
     run['floorsPerPack'] = 5
+
+
+    global boosterType
+    global boosterRare
+    global boosterEpic
+    global boosterLegendary
+    global boostCardsCode
+    boosterType = 1
+    boosterRare = {}
+    boosterRare['rarity'] = 1
+    boosterRare['id'] = 0x0101000000000000000000000000000000000000000000000000000000000000
+    boosterEpic = {}
+    boosterEpic['rarity'] = 2
+    boosterEpic['id'] = 0x0102000000000000000000000000000000000000000000000000000000000000
+    boosterLegendary = {}
+    boosterLegendary['rarity'] = 3
+    boosterLegendary['id'] = 0x0103000000000000000000000000000000000000000000000000000000000000
+    boostCardsCode = to_bytes(0xF1, 'bytes1')
 
 @pytest.fixture
 def gameContract():
@@ -124,7 +146,7 @@ def testChangeMarketContract(gameContract):
     gameContract.setMarketContractAddress(newAddress, {'from':owner})
     assert gameContract.getMarketContractAddress() == newAddress
 
-#TODO : code
+
 
 
 
@@ -170,23 +192,98 @@ def testRun(gameContract):
     assert tokenContract.balanceOf(player1, pack['id']) >= int(run['result']/run['floorsPerPack'])
 
 def testGenerateCardRarityVariant(gameContract):
-
-
-
     marketContract = TWGMarket.at(gameContract.getMarketContractAddress())
     tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
 
     card1Id = gameContract.listNewAsset(cardType, card1['rarity'], {'from': owner}).return_value
     print(hex(card1Id))
     print(hex(card1['id']))
-    gameContract.generateAssetRarityVariant(card1Id, card1Upgrade['rarity'])
+    gameContract.listAssetRarityVariant(card1Id, card1Upgrade['rarity'])
 
     cards = gameContract.getAssetsList(cardType)
     assert gameContract.getAssetsList(cardType) == [card1['id'], card1Upgrade['id']]
 
 
     try:
-        gameContract.generateAssetRarityVariant(card1Id, card1Upgrade['rarity'])
+        gameContract.listAssetRarityVariant(card1Id, card1Upgrade['rarity'])
+        assert False
+    except(VirtualMachineError):
+        assert True
+    else:
+        assert False
+
+
+def testBoostCard(gameContract):
+    marketContract = TWGMarket.at(gameContract.getMarketContractAddress())
+    tokenContract = TWGToken.at(marketContract.getTokenContractAddress())
+    card1Id = gameContract.listNewAsset(cardType, card1['rarity'], {'from': owner}).return_value
+    card1IdRare = gameContract.listNewAsset(cardType, boosterRare['rarity'], {'from': owner}).return_value
+    card1IdEpic = gameContract.listNewAsset(cardType, boosterEpic['rarity'], {'from': owner}).return_value
+    card1IdLegendary = gameContract.listNewAsset(cardType, boosterLegendary['rarity'], {'from': owner}).return_value
+
+    boosterRareId = gameContract.listNewAsset(boosterType, boosterRare['rarity'], {'from': owner}).return_value
+    boosterEpicId = gameContract.listAssetRarityVariant(boosterRareId, boosterEpic["rarity"]).return_value
+    boosterLegendaryId = gameContract.listAssetRarityVariant(boosterEpicId, boosterLegendary["rarity"]).return_value
+    assert boosterRareId == boosterRare['id']
+    assert boosterEpicId == boosterEpic['id']
+    assert boosterLegendaryId == boosterLegendary['id']
+    assert gameContract.getBoostCardsCode() == boostCardsCode
+
+    tokenContract.printTo(player1, card1['id'], card1['initialStock'], {'from': owner})
+    tokenContract.printTo(player1, boosterRare['id'], card1['boostAmount'], {'from': owner})
+    tokenContract.printTo(player1, boosterEpic['id'], card1['boostAmount'], {'from': owner})
+    tokenContract.printTo(player1, boosterLegendary['id'], card1['boostAmount'], {'from': owner})
+    tokenContract.printTo(gameContract, card1['idUpgrade1'], 9999999, {'from': owner})
+    tokenContract.printTo(gameContract, card1['idUpgrade2'], 9999999, {'from': owner})
+    tokenContract.printTo(gameContract, card1['idUpgrade3'], 9999999, {'from': owner})
+
+
+    tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['id'], boosterRare["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
+    assert tokenContract.balanceOf(player1, card1['id']) == card1['initialStock'] - card1['boostAmount']
+    assert tokenContract.balanceOf(player1, card1['idUpgrade1']) == card1['boostAmount']
+    assert tokenContract.balanceOf(player1, card1['idUpgrade2']) == 0
+    assert tokenContract.balanceOf(player1, card1['idUpgrade3']) == 0
+
+    try:
+        tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['id'], boosterRare["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
+        assert False
+    except(VirtualMachineError):
+        assert True
+    else:
+        assert False
+
+
+    tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['idUpgrade1'], boosterEpic["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
+    assert tokenContract.balanceOf(player1, card1['id']) == card1['initialStock'] - card1['boostAmount']
+    assert tokenContract.balanceOf(player1, card1['idUpgrade1']) == 0
+    assert tokenContract.balanceOf(player1, card1['idUpgrade2']) == card1['boostAmount']
+    assert tokenContract.balanceOf(player1, card1['idUpgrade3']) == 0
+
+    try:
+        tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['idUpgrade1'], boosterEpic["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
+        assert False
+    except(VirtualMachineError):
+        assert True
+    else:
+        assert False
+
+    tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['idUpgrade2'], boosterLegendary["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
+    assert tokenContract.balanceOf(player1, card1['id']) == card1['initialStock'] - card1['boostAmount']
+    assert tokenContract.balanceOf(player1, card1['idUpgrade1']) == 0
+    assert tokenContract.balanceOf(player1, card1['idUpgrade2']) == 0
+    assert tokenContract.balanceOf(player1, card1['idUpgrade3']) == card1['boostAmount']
+
+    try:
+        tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['idUpgrade2'], boosterLegendary["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
+        assert False
+    except(VirtualMachineError):
+        assert True
+    else:
+        assert False
+
+
+    try:
+        tokenContract.safeBatchTransferFrom(player1, gameContract.address, [card1['idUpgrade3'], boosterLegendary["id"]], [card1['boostAmount'], card1['boostAmount']], boostCardsCode, {'from':player1})
         assert False
     except(VirtualMachineError):
         assert True
